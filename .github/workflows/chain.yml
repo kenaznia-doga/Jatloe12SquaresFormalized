@@ -22,10 +22,11 @@ jobs:
         run: |
           set -euo pipefail
           mkdir ev && cd ev
-          gh run download "$RUN_ID" --repo "$REPO" --pattern 'n12-final-evidence-*' || { echo "no evidence artifact"; exit 1; }
-          f=$(find . -name github-replay.json | head -1)
-          test -n "$f" || { echo "no github-replay.json"; exit 1; }
-          proved=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("global_optimality_proved") is True)' "$f")
+          aid=$(gh api "repos/$REPO/actions/runs/$RUN_ID/artifacts" --jq '[.artifacts[]|select(.name|startswith("n12-final-evidence"))][0].id')
+          test -n "$aid" || { echo "no evidence artifact"; exit 1; }
+          gh api "repos/$REPO/actions/artifacts/$aid/zip" > ev.zip
+          unzip -q ev.zip replay-stop.json
+          proved=$(python3 -c 'import json;print(json.load(open("replay-stop.json")).get("global_optimality_proved") is True)')
           echo "global_optimality_proved=$proved"
           if [ "$proved" = True ]; then echo "accepted; chain ends"; exit 0; fi
           n=$(gh run list --repo "$REPO" --workflow verify.yml --limit 100 --json databaseId --jq length)
